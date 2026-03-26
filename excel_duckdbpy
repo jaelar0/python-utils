@@ -1,0 +1,174 @@
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Optional
+
+import duckdb
+import pandas as pd
+
+
+def load_excel_to_raw_duckdb(
+    excel_file: str,
+    table_name: str,
+    duckdb_path: str,
+    *,
+    sheet_name: Optional[str] = 0,
+    schema_name: str = "raw",
+    if_exists: str = "replace",
+) -> None:
+    """
+    Read an Excel file and load it into a DuckDB table.
+
+    Parameters
+    ----------
+    excel_file : str
+        Path to the Excel file.
+    table_name : str
+        Target DuckDB table name.
+    duckdb_path : str
+        Path to the raw DuckDB database file.
+    sheet_name : str | int | None, default 0
+        Excel sheet name or index.
+    schema_name : str, default "raw"
+        Target schema in DuckDB.
+    if_exists : str, default "replace"
+        Behavior if the table already exists.
+        Supported:
+        - "replace": drop and recreate
+        - "append": insert into existing table
+        - "fail": raise error if table exists
+    """
+    excel_path = Path(excel_file)
+    db_path = Path(duckdb_path)
+
+    if not excel_path.exists():
+        raise FileNotFoundError(f"Excel file not found: {excel_path}")
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read Excel into pandas
+    df = pd.read_excel(excel_path, sheet_name=sheet_name)
+
+    # Normalize column names a bit
+    df.columns = [
+        str(col).strip().replace(" ", "_").replace("-", "_").lower()
+        for col in df.columns
+    ]
+
+    full_table_name = f"{schema_name}.{table_name}"
+
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(f"create schema if not exists {schema_name}")
+
+        table_exists = conn.execute(
+            """
+            select count(*)
+            from information_schema.tables
+            where table_schema = ? and table_name = ?
+            """,
+            [schema_name, table_name],
+        ).fetchone()[0] > 0
+
+        if if_exists == "fail" and table_exists:
+            raise ValueError(f"Table already exists: {full_table_name}")
+
+        conn.register("excel_df_view", df)
+
+        if if_exists == "replace":
+            conn.execute(f"drop table if exists {full_table_name}")
+            conn.execute(
+                f"create table {full_table_name} as select * from excel_df_view"
+            )
+
+        elif if_exists == "append":
+            if table_exists:
+                conn.execute(
+                    f"insert into {full_table_name} select * from excel_df_view"
+                )
+            else:
+                conn.execute(
+                    f"create table {full_table_name} as select * from excel_df_view"
+                )
+
+        elif if_exists == "fail":
+            conn.execute(
+                f"create table {full_table_name} as select * from excel_df_view"
+            )
+
+        else:
+            raise ValueError("if_exists must be one of: replace, append, fail")
+
+        conn.unregister("excel_df_view")
+
+    finally:
+        conn.close()
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Load an Excel file into a raw DuckDB table."
+    )
+    parser.add_argument(
+        "--excel-file",
+        required=True,
+        help="Path to the Excel file",
+    )
+    parser.add_argument(
+        "--table-name",
+        required=True,
+        help="Target DuckDB table name",
+    )
+    parser.add_argument(
+        "--duckdb-path",
+        required=True,
+        help="Path to the raw DuckDB database file",
+    )
+    parser.add_argument(
+        "--sheet-name",
+        default=0,
+        help="Excel sheet name or index (default: 0)",
+    )
+    parser.add_argument(
+        "--schema-name",
+        default="raw",
+        help="Target DuckDB schema name (default: raw)",
+    )
+    parser.add_argument(
+        "--if-exists",
+        default="replace",
+        choices=["replace", "append", "fail"],
+        help="What to do if the table exists (default: replace)",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    # Convert numeric sheet indexes passed as strings like "0"
+    sheet_value: str | int
+    if isinstance(args.sheet_name, str) and args.sheet_name.isdigit():
+        sheet_value = int(args.sheet_name)
+    else:
+        sheet_value = args.sheet_name
+
+    load_excel_to_raw_duckdb(
+        excel_file=args.excel_file,
+        table_name=args.table_name,
+        duckdb_path=args.duckdb_path,
+        sheet_name=sheet_value,
+        schema_name=args.schema_name,
+        if_exists=args.if_exists,
+    )
+
+    print(
+        f"Loaded Excel file '{args.excel_file}' into "
+        f"'{args.schema_name}.{args.table_name}' "
+        f"in DuckDB database '{args.duckdb_path}'."
+    )
+
+
+if __name__ == "__main__":
+    main()
