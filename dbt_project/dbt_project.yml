@@ -1,0 +1,39 @@
+name: 'cre_stress_test'
+version: '1.0.0'
+config-version: 2
+
+profile: 'cre_stress_test'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  cre_stress_test:
+    staging:
+      +materialized: view
+      +schema: staging
+      # staging and intermediate stay in the source DuckDB (default database)
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+      # All mart tables are written to the separate output DuckDB.
+      # This keeps source data and output data in separate files.
+      # PowerBI and the vendor model connect to cre_stress_test_output.duckdb only.
+      +database: output_db
+
+seeds:
+  cre_stress_test:
+    # Seeds load into the source DuckDB alongside raw data
+    +schema: seeds

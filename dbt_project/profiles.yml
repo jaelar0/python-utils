@@ -1,0 +1,24 @@
+# profiles.yml — place this in ~/.dbt/profiles.yml OR in the project root
+# (dbt-duckdb adapter required: pip install dbt-duckdb)
+#
+# TWO DuckDB databases:
+#   source_db  — the read-only Snowflake pull (all raw data lives here)
+#   output_db  — a separate file where final mart tables are written
+#                This is what the PowerBI dashboard and vendor model connect to.
+
+cre_stress_test:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Primary database — the Snowflake pull (source data + staging/intermediate models)
+      path: /path/to/local/snowflake_pull.duckdb
+      threads: 4
+      extensions:
+        - httpfs
+        - json
+      # Attach the output database so dbt can write mart tables there
+      attach:
+        - path: /path/to/local/cre_stress_test_output.duckdb
+          alias: output_db
+          read_only: false

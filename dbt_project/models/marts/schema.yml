@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: fct_cre_noo_stress_test_input
+    description: >
+      Final Input Dataset for the third-party vendor stress-test model.
+      Scope: CRE Non-Owner Occupied loans as of 12-31-2025.
+      Includes collateral values, addresses, and remaining term calculations.
+      This model is the validated replacement for the manually-produced Input Dataset.
+    columns:
+      - name: loan_id
+        description: Primary key — unique per loan.
+        tests:
+          - not_null
+          - unique
+      - name: loan_number
+        tests:
+          - not_null
+      - name: call_report_code
+        description: Should be '1-a' for all rows (CRE NOO filter).
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['1-a']
+      - name: months_to_maturity
+        description: Remaining months to maturity as of 12-31-2025. Zero if past maturity.
+      - name: amortization_term_remaining
+        description: Remaining amortization months as of 12-31-2025. Accounts for IO period.
+      - name: io_term_remaining
+        description: Remaining IO period in months. Null if not an IO loan.
+      - name: has_collateral_match
+        description: True if a collateral record was found for this loan.
+      - name: is_valid_street_address
+        description: True if the collateral street address passes regex validation.
+      - name: report_date
+        description: Always 2025-12-31 for this run.
+        tests:
+          - not_null
+
+  - name: fct_data_quality_summary
+    description: >
+      Aggregated data quality metrics for the PowerBI dashboard.
+      One row per report_date. Covers match rates, address quality, and term completeness.
+    columns:
+      - name: report_date
+        tests:
+          - not_null
+          - unique
+      - name: collateral_match_pct
+        description: Percentage of loans with a matched collateral record.
+      - name: valid_address_pct
+        description: Percentage of matched loans with a valid street address.
+
+  - name: fct_filter_pattern_analysis
+    description: >
+      Aggregated breakdown of all Core loan fields by membership in the Input Datasets.
+      Used to reverse-engineer the CRE NOO filter: look for field values where
+      dec_input_pct = 100% — those are strong filter candidates.
+      Also surfaces loans in the Input Datasets that are missing from Core entirely.
+    columns:
+      - name: filter_field
+        description: The Core loan field being analyzed (e.g., 'call_report_code').
+      - name: field_value
+        description: The distinct value of that field in the data.
+      - name: total_core_count
+        description: Number of loans in Core with this field value.
+      - name: dec_input_count
+        description: Of those Core loans, how many appear in the 12-31-2025 Input Dataset.
+      - name: dec_input_pct
+        description: Percentage of Core loans with this value that are in the 12-31 Input.
+      - name: signal_strength
+        description: >
+          Qualitative label indicating how well this field value predicts Input membership.
+          STRONG = 100% captured. Use these as definitive filter conditions.

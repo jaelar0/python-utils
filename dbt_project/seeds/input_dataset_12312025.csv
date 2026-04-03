@@ -1,0 +1,4 @@
+loan_id,loan_number,loan_type_code,call_report_code,occupancy_type_code,product_type,outstanding_balance,committed_balance,origination_date,maturity_date,original_amortization_term_months,io_period_months,interest_rate,rate_type,collateral_id,appraised_value,appraisal_date,street_address,city,state_code,zip_code,branch_code,loan_officer_id
+MOCK_001,LN-10001,CRE,1-a,NOO,TERM,1200000.00,1500000.00,2021-03-15,2026-03-15,300,0,5.75,FIXED,COL-10001,2000000.00,2022-06-01,123 Main St,Tampa,FL,33601,BR-01,LO-101
+MOCK_002,LN-10002,CRE,1-a,NOO,ARC,2900000.00,4000000.00,2022-06-01,2027-06-01,360,24,6.25,VARIABLE,COL-10002,5000000.00,2023-01-15,456 Commerce Blvd,Orlando,FL,32801,BR-02,LO-102
+MOCK_003,LN-10003,CRE,1-a,NOO,TERM,875000.00,900000.00,2020-09-01,2025-09-01,240,0,4.90,FIXED,COL-10003,1200000.00,2021-03-10,789 Industrial Way,Jacksonville,FL,32202,BR-01,LO-103

@@ -1,0 +1,41 @@
+version: 2
+
+seeds:
+  - name: state_abbreviations
+    description: >
+      Lookup table mapping US state full names to 2-letter abbreviations.
+      Covers all 50 states, DC, and US territories.
+      Used by the normalize_state macro to standardize state values from Core/nCino.
+    columns:
+      - name: full_name
+        description: Full state name (e.g., "Florida")
+        tests:
+          - not_null
+          - unique
+      - name: abbreviation
+        description: 2-letter USPS abbreviation (e.g., "FL")
+        tests:
+          - not_null
+          - unique
+
+  - name: input_dataset_3312025
+    description: >
+      Manually-produced Input Dataset for the 3-31-2025 period provided by the team.
+      TEMPLATE: Replace the mock rows with actual data from the team's file.
+      Used in int_loan_filter_discovery to reverse-engineer the CRE NOO filter logic.
+    columns:
+      - name: loan_id
+        tests:
+          - not_null
+          - unique
+
+  - name: input_dataset_12312025
+    description: >
+      Manually-produced Input Dataset for the 12-31-2025 period provided by the team.
+      TEMPLATE: Replace the mock rows with actual data from the team's file.
+      This is the primary validation target for the new dbt process.
+    columns:
+      - name: loan_id
+        tests:
+          - not_null
+          - unique

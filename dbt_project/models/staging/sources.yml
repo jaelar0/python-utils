@@ -1,0 +1,75 @@
+version: 2
+
+sources:
+  - name: core
+    description: >
+      Core banking system data pulled into local DuckDB.
+      Sourced from Snowflake (read-only) and loaded by the analyst.
+      Update the schema/database values to match your DuckDB table names.
+    database: "{{ env_var('DUCKDB_DATABASE', 'main') }}"
+    schema: core
+    tables:
+      - name: loans
+        description: All commercial loans from the Core system for 2025.
+        columns:
+          - name: loan_id
+            description: Primary key for a loan record.
+            tests:
+              - not_null
+          - name: loan_number
+            description: Human-readable loan number; used to join to nCino.
+          - name: call_report_code
+            description: FFIEC Call Report code. '1-a' = CRE Non-Owner Occupied.
+          - name: as_of_date
+            description: Period-end date for this snapshot row.
+
+      - name: collaterals
+        description: Collateral master records from Core.
+        columns:
+          - name: collateral_id
+            description: Primary key for a collateral record.
+            tests:
+              - not_null
+
+      - name: loan_collateral_xref
+        description: >
+          Bridge table linking loan IDs to collateral IDs.
+          A loan may have multiple collateral records (cross-collateralization).
+
+  - name: validation
+    description: >
+      Reference datasets used for validation. Includes the manually-produced Input Datasets
+      provided by the team. These are loaded as dbt seeds and referenced here as sources
+      so that validation tests and the parity test can reference them.
+    schema: seeds
+    tables:
+      - name: input_dataset_12312025
+        description: Manually-produced Input Dataset for 12-31-2025 (primary validation target).
+        columns:
+          - name: loan_id
+            tests:
+              - not_null
+      - name: input_dataset_3312025
+        description: Manually-produced Input Dataset for 3-31-2025 (secondary validation).
+        columns:
+          - name: loan_id
+            tests:
+              - not_null
+
+  - name: ncino
+    description: >
+      nCino (Salesforce-based lending platform) data pulled into local DuckDB.
+      Used primarily for ARC/construction loan classification and supplemental loan data.
+    database: "{{ env_var('DUCKDB_DATABASE', 'main') }}"
+    schema: ncino
+    tables:
+      - name: nc_loan
+        description: nCino loan objects. Field names follow Salesforce API naming (ll__*__c).
+        columns:
+          - name: id
+            description: Salesforce record ID (18-character alphanumeric).
+            tests:
+              - not_null
+              - unique
+          - name: ll__loan_number__c
+            description: Cross-reference to Core loan_number.
