@@ -60,34 +60,88 @@ scheduled as (
 
 ),
 
--- Full-day leave broken out by type
-full_leave_by_type as (
+-- Full-day leave: compute duration from start/stop then subtract any overlap
+-- with rostered breaks/lunches so scheduled break time is never counted as absent.
+full_leave_net as (
 
     select
         l.payroll,
         date(l.start)                                                   as work_date,
         l.type                                                          as leave_type,
-        round(sum(l.hours), 4)                                          as leave_hours
+        max(0.0,
+            (julianday(l.stop) - julianday(l.start)) * 24
+            - coalesce((
+                select sum(
+                    max(0.0,
+                        (julianday(min(l.stop,   rb."to"))
+                         - julianday(max(l.start, rb."from"))) * 24
+                    )
+                )
+                from {{ source('raw_shifttrack', 'roster_breaks_raw') }} rb
+                where rb.person       = l.payroll
+                  and date(rb."from") = date(l.start)
+                  and rb.break        = 1
+                  and rb."from"       < l.stop
+                  and rb."to"         > l.start
+            ), 0)
+        )                                                               as net_leave_hours
 
     from {{ source('raw_shifttrack', 'leave_raw') }} l
-    group by l.payroll, date(l.start), l.type
 
 ),
 
--- Partial-day leave broken out by type
-partial_leave_by_type as (
+full_leave_by_type as (
+
+    select
+        payroll,
+        work_date,
+        leave_type,
+        round(sum(net_leave_hours), 4)                                  as leave_hours
+
+    from full_leave_net
+    group by payroll, work_date, leave_type
+
+),
+
+-- Partial-day leave: same break-overlap subtraction applied to leavestart/leavefinish.
+partial_leave_net as (
 
     select
         pl.payroll,
         date(pl.leavestart)                                             as work_date,
         pl.leavetype                                                    as leave_type,
-        round(
-            sum(max(0.0, (julianday(pl.leavefinish) - julianday(pl.leavestart)) * 24)),
-            4
-        )                                                               as leave_hours
+        max(0.0,
+            (julianday(pl.leavefinish) - julianday(pl.leavestart)) * 24
+            - coalesce((
+                select sum(
+                    max(0.0,
+                        (julianday(min(pl.leavefinish, rb."to"))
+                         - julianday(max(pl.leavestart, rb."from"))) * 24
+                    )
+                )
+                from {{ source('raw_shifttrack', 'roster_breaks_raw') }} rb
+                where rb.person       = pl.payroll
+                  and date(rb."from") = date(pl.leavestart)
+                  and rb.break        = 1
+                  and rb."from"       < pl.leavefinish
+                  and rb."to"         > pl.leavestart
+            ), 0)
+        )                                                               as net_leave_hours
 
     from {{ source('raw_shifttrack', 'partial_leave_raw') }} pl
-    group by pl.payroll, date(pl.leavestart), pl.leavetype
+
+),
+
+partial_leave_by_type as (
+
+    select
+        payroll,
+        work_date,
+        leave_type,
+        round(sum(net_leave_hours), 4)                                  as leave_hours
+
+    from partial_leave_net
+    group by payroll, work_date, leave_type
 
 ),
 
