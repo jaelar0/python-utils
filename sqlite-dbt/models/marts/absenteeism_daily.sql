@@ -5,8 +5,9 @@
   Captures total absenteeism hours (full-day leave + partial leave) and the
   absenteeism percentage against scheduled hours.
 
-  Scheduled Hours = Rostered Hours - Breaks - Lunch
-  Absenteeism %   = Absenteeism Hours / Scheduled Hours
+  Scheduled Hours   = Rostered Hours - Breaks - Lunch
+  Absenteeism Hours = Leave Duration - Overlap with Rostered Breaks/Lunch
+  Absenteeism %     = Absenteeism Hours / Scheduled Hours
 
   Grain: payroll × work_date
   Supports team or per-agent aggregation in Power BI via team/lob columns.
@@ -48,35 +49,88 @@ breaks_lunch_agg as (
 
 ),
 
--- Full-day leave (hours pre-calculated in source table)
-full_leave as (
+-- Full-day leave: compute duration from start/stop then subtract any overlap
+-- with rostered breaks/lunches so scheduled break time is never counted as absent.
+full_leave_net as (
 
     select
         l.payroll,
         date(l.start)                                                   as work_date,
-        sum(l.hours)                                                    as leave_hours,
-        group_concat(l.type, ' | ')                                     as leave_types
+        l.type,
+        max(0.0,
+            (julianday(l.stop) - julianday(l.start)) * 24
+            - coalesce((
+                select sum(
+                    max(0.0,
+                        (julianday(min(l.stop,   rb."to"))
+                         - julianday(max(l.start, rb."from"))) * 24
+                    )
+                )
+                from {{ source('raw_shifttrack', 'roster_breaks_raw') }} rb
+                where rb.person       = l.payroll
+                  and date(rb."from") = date(l.start)
+                  and rb.break        = 1
+                  and rb."from"       < l.stop
+                  and rb."to"         > l.start
+            ), 0)
+        )                                                               as net_leave_hours
 
     from {{ source('raw_shifttrack', 'leave_raw') }} l
-    group by l.payroll, date(l.start)
 
 ),
 
--- Partial-day leave (late arrivals, early departures, partial PTO, etc.)
-partial_leave as (
+full_leave as (
+
+    select
+        payroll,
+        work_date,
+        sum(net_leave_hours)                                            as leave_hours,
+        group_concat(type, ' | ')                                       as leave_types
+
+    from full_leave_net
+    group by payroll, work_date
+
+),
+
+-- Partial-day leave: same break-overlap subtraction applied to leavestart/leavefinish.
+partial_leave_net as (
 
     select
         pl.payroll,
         date(pl.leavestart)                                             as work_date,
-        round(
-            -- Guard against bad data where leavefinish < leavestart
-            sum(max(0.0, (julianday(pl.leavefinish) - julianday(pl.leavestart)) * 24)),
-            4
-        )                                                               as leave_hours,
-        group_concat(pl.leavetype, ' | ')                               as leave_types
+        pl.leavetype,
+        max(0.0,
+            (julianday(pl.leavefinish) - julianday(pl.leavestart)) * 24
+            - coalesce((
+                select sum(
+                    max(0.0,
+                        (julianday(min(pl.leavefinish, rb."to"))
+                         - julianday(max(pl.leavestart, rb."from"))) * 24
+                    )
+                )
+                from {{ source('raw_shifttrack', 'roster_breaks_raw') }} rb
+                where rb.person       = pl.payroll
+                  and date(rb."from") = date(pl.leavestart)
+                  and rb.break        = 1
+                  and rb."from"       < pl.leavefinish
+                  and rb."to"         > pl.leavestart
+            ), 0)
+        )                                                               as net_leave_hours
 
     from {{ source('raw_shifttrack', 'partial_leave_raw') }} pl
-    group by pl.payroll, date(pl.leavestart)
+
+),
+
+partial_leave as (
+
+    select
+        payroll,
+        work_date,
+        sum(net_leave_hours)                                            as leave_hours,
+        group_concat(leavetype, ' | ')                                  as leave_types
+
+    from partial_leave_net
+    group by payroll, work_date
 
 ),
 
