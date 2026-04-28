@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: absenteeism_daily
+    description: >
+      One row per agent per rostered work day. Captures total absenteeism hours
+      (full-day leave + partial leave) against scheduled hours. Use this model for
+      overall daily absenteeism totals. See absenteeism_by_type for leave-type breakdowns.
+    columns:
+      - name: work_date
+        description: "The agent's rostered work date"
+      - name: payroll
+        description: "Agent payroll ID"
+      - name: firstname
+        description: "Agent first name"
+      - name: surname
+        description: "Agent surname"
+      - name: team
+        description: "Agent team — use for team-level aggregation in Power BI"
+      - name: lob
+        description: "Line of business — use for LOB-level aggregation in Power BI"
+      - name: rostered_hours
+        description: "Total shift hours from the roster"
+      - name: break_lunch_hours
+        description: "Total break and lunch hours (roster_breaks_raw where break = 1)"
+      - name: scheduled_hours
+        description: "Productive scheduled hours = rostered_hours - break_lunch_hours"
+      - name: absenteeism_hours
+        description: "Total absent hours across all leave types (full-day + partial-day)"
+      - name: leave_types
+        description: "Pipe-delimited list of all leave type labels for the day"
+      - name: absenteeism_pct
+        description: "absenteeism_hours / scheduled_hours; NULL when scheduled_hours = 0"
+
+  - name: absenteeism_by_type
+    description: >
+      One row per agent per rostered work day per leave type. Use this model for
+      leave-type breakdowns in Power BI (e.g., filter to 'Late Arrival' to see
+      how many hours LOB BNA lost). Only agents with at least one leave record
+      on a given day appear. Use absenteeism_daily for complete agent coverage
+      including zero-absenteeism days.
+    columns:
+      - name: work_date
+        description: "The agent's rostered work date"
+      - name: payroll
+        description: "Agent payroll ID"
+      - name: firstname
+        description: "Agent first name"
+      - name: surname
+        description: "Agent surname"
+      - name: team
+        description: "Agent team — use for team-level aggregation in Power BI"
+      - name: lob
+        description: "Line of business — use for LOB-level aggregation in Power BI"
+      - name: leave_type
+        description: "Leave category (e.g., PTO - Vacation, Late Arrival, Protected Leave)"
+      - name: rostered_hours
+        description: "Total shift hours from the roster"
+      - name: scheduled_hours
+        description: "Productive scheduled hours = rostered_hours - break_lunch_hours"
+      - name: absenteeism_hours
+        description: "Absent hours for this specific leave type on this day"
+      - name: absenteeism_pct
+        description: "absenteeism_hours / scheduled_hours for this leave type; NULL when scheduled_hours = 0"
+
+  - name: adherence_daily
+    description: >
+      One row per agent per rostered work day. Measures schedule adherence during
+      productive scheduled time (roster window minus rostered activities). An agent
+      is adherent when in Waiting, Connected, After Call Work, or Dialer Login during
+      non-activity time. All duration columns are HH:MM:SS strings. Calculations use
+      seconds for sub-minute precision.
+    columns:
+      - name: work_date
+        description: "The agent's rostered work date"
+      - name: payroll
+        description: "Agent payroll ID"
+      - name: firstname
+        description: "Agent first name"
+      - name: surname
+        description: "Agent surname"
+      - name: team
+        description: "Agent team — use for team-level aggregation in Power BI"
+      - name: lob
+        description: "Line of business — use for LOB-level aggregation in Power BI"
+      - name: rostered_seconds
+        description: "Total shift duration in seconds — use for aggregation in Power BI"
+      - name: rostered_activity_seconds
+        description: "Total scheduled activity time (breaks + lunches + meetings) in seconds"
+      - name: scheduled_productive_seconds
+        description: "rostered_seconds minus rostered_activity_seconds"
+      - name: adherent_seconds
+        description: "Seconds in a productive status during productive windows"
+      - name: non_adherent_seconds
+        description: "Seconds in a non-productive status during productive windows"
+      - name: rostered_time
+        description: "Total shift duration as HH:MM:SS"
+      - name: rostered_activity_time
+        description: "Total scheduled activity time (breaks + lunches + meetings) as HH:MM:SS"
+      - name: scheduled_productive_time
+        description: "rostered_time minus rostered_activity_time as HH:MM:SS"
+      - name: adherent_time
+        description: "Time in a productive status (Waiting/Connected/ACW/Dialer Login) during productive windows as HH:MM:SS"
+      - name: non_adherent_time
+        description: "Time in a non-productive status during productive windows as HH:MM:SS"
+      - name: adherence_pct
+        description: "adherent_seconds / (adherent_seconds + non_adherent_seconds) as a decimal; NULL when no logged data"

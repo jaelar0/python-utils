@@ -1,0 +1,14 @@
+td_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: sqlite
+      threads: 1
+      database: "td_analytics"
+      schema: "main"
+      schemas_and_paths:
+        # Path to the source SQLite database containing raw tables
+        raw_shifttrack: "{{ env_var('RAW_DB_PATH', '/path/to/raw_shifttrack.db') }}"
+        # Path where dbt will write mart tables
+        main: "{{ env_var('ANALYTICS_DB_PATH', '/path/to/td_analytics.db') }}"
+      schema_directory: "/path/to/schemas"

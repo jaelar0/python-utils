@@ -1,0 +1,44 @@
+version: 2
+
+sources:
+  - name: raw_shifttrack
+    description: "Raw ShiftTrack data from the source SQLite database"
+    schema: raw_shifttrack
+    tables:
+      - name: adh_log_raw
+        description: "Agent activity log. newstatus is the authoritative status field. No explicit end times — use LEAD() to derive intervals."
+
+      - name: roster_breaks_raw
+        description: "Rostered breaks, lunches, and meetings per agent per day. break=1 means break/lunch; break=0 means a scheduled non-phone activity (e.g. meeting)."
+        columns:
+          - name: roster_key
+            description: "Foreign key to roster_staff_raw"
+          - name: person
+            description: "Agent payroll ID"
+          - name: from
+            description: "Activity start datetime"
+          - name: to
+            description: "Activity end datetime"
+          - name: break
+            description: "1 = break or lunch (excluded from scheduled hours); 0 = meeting or other rostered activity"
+
+      - name: roster_staff_raw
+        description: "Agent daily roster. start/finish use 1899-12-30 as a placeholder date; use rdate for the actual work date."
+        columns:
+          - name: roster_key
+            description: "Primary key"
+          - name: rdate
+            description: "Actual work date for this roster entry"
+          - name: start
+            description: "Shift start time (date portion is always 1899-12-30 — use time() to extract)"
+          - name: finish
+            description: "Shift finish time (date portion is always 1899-12-30 — use time() to extract)"
+
+      - name: partial_leave_raw
+        description: "Partial-day leave records (late arrivals, early departures, partial PTO, etc.)"
+
+      - name: leave_raw
+        description: "Full-day leave records with pre-calculated hours"
+
+      - name: personnel_raw
+        description: "Agent directory — name, team, and line of business"
